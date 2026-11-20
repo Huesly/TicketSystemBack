@@ -151,4 +151,3 @@ docker exec confytickets-backend python /app/scripts/reset_password.py admin@tud
 | `GET/PATCH` | `/api/v1/admin/customers` | Admin | Directorio de clientes, estado de cuenta y documento DIAN |
 | `POST` | `/api/v1/admin/customers/{id}/adjust-stamps` | Admin | Ajuste manual auditado de sellos (`+` / `-`) con motivo obligatorio |
 | `GET/PUT` | `/api/v1/admin/loyalty-rules` | Admin | Configurar valor en COP por sello y reglas del programa |
-| `POST` | `/api/v1/admin/sql-import` | Admin | Ejecutor/importador transaccional de lotes SQL (`dry_run` / `commit`) |

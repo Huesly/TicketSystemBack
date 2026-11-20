@@ -73,43 +73,41 @@ class CybersecurityMiddleware(BaseHTTPMiddleware):
         path = request.url.path
 
         # ---------------------------------------------------------------------
-        # 1. INSPECCIÓN WAF (SQL Injection / XSS) EN URL Y QUERY PARAMS
-        #    (Excluimos el endpoint administrativo de importación SQL controlada)
+        # 1. INSPECCIÓN WAF (SQL Injection / XSS) EN URL, QUERY PARAMS Y BODY
         # ---------------------------------------------------------------------
-        if not path.endswith("/admin/sql-import"):
-            raw_query = str(request.url.query or "")
-            is_malicious, signature = inspect_malicious_payload(raw_query)
-            if is_malicious:
-                logger.warning(f"[WAF BLOCK] IP={client_ip} Path={path} Signature={signature}")
-                return JSONResponse(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    content={
-                        "detail": "Petición bloqueada por el escudo de ciberseguridad (patrón sospechoso de inyección SQL/XSS detectado en parámetros).",
-                        "code": "WAF_SQLI_XSS_BLOCKED",
-                        "signature": signature,
-                    },
-                )
+        raw_query = str(request.url.query or "")
+        is_malicious, signature = inspect_malicious_payload(raw_query)
+        if is_malicious:
+            logger.warning(f"[WAF BLOCK] IP={client_ip} Path={path} Signature={signature}")
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "detail": "Petición bloqueada por el escudo de ciberseguridad (patrón sospechoso de inyección SQL/XSS detectado en parámetros).",
+                    "code": "WAF_SQLI_XSS_BLOCKED",
+                    "signature": signature,
+                },
+            )
 
-            # Inspeccionar cuerpo en peticiones POST/PUT/PATCH de tamaño moderado
-            if request.method in {"POST", "PUT", "PATCH"}:
-                content_type = request.headers.get("content-type", "")
-                if "application/json" in content_type:
-                    try:
-                        body_bytes = await request.body()
-                        body_text = body_bytes.decode("utf-8", errors="ignore")
-                        is_bad_body, body_sig = inspect_malicious_payload(body_text)
-                        if is_bad_body:
-                            logger.warning(f"[WAF BODY BLOCK] IP={client_ip} Path={path} Signature={body_sig}")
-                            return JSONResponse(
-                                status_code=status.HTTP_400_BAD_REQUEST,
-                                content={
-                                    "detail": "Petición bloqueada por el escudo de ciberseguridad (intento de inyección SQL o script malicioso detectado).",
-                                    "code": "WAF_SQLI_XSS_BLOCKED",
-                                    "signature": body_sig,
-                                },
-                            )
-                    except Exception:
-                        pass
+        # Inspeccionar cuerpo en peticiones POST/PUT/PATCH de tamaño moderado
+        if request.method in {"POST", "PUT", "PATCH"}:
+            content_type = request.headers.get("content-type", "")
+            if "application/json" in content_type:
+                try:
+                    body_bytes = await request.body()
+                    body_text = body_bytes.decode("utf-8", errors="ignore")
+                    is_bad_body, body_sig = inspect_malicious_payload(body_text)
+                    if is_bad_body:
+                        logger.warning(f"[WAF BODY BLOCK] IP={client_ip} Path={path} Signature={body_sig}")
+                        return JSONResponse(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            content={
+                                "detail": "Petición bloqueada por el escudo de ciberseguridad (intento de inyección SQL o script malicioso detectado).",
+                                "code": "WAF_SQLI_XSS_BLOCKED",
+                                "signature": body_sig,
+                            },
+                        )
+                except Exception:
+                    pass
 
         # ---------------------------------------------------------------------
         # 2. RATE LIMITING ANTI-DDOS Y PROTECCIÓN DE AUTENTICACIÓN (REDIS)

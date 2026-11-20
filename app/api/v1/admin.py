@@ -31,14 +31,8 @@ from app.schemas.admin import (
 )
 from pydantic import BaseModel, Field
 from app.api.deps import get_current_cashier_or_admin, get_current_admin
-from scripts.import_sql import execute_safe_sql_batch
 
 router = APIRouter(prefix="/admin", tags=["Administración y Backoffice"])
-
-
-class SqlImportRequest(BaseModel):
-    sql_script: str = Field(..., min_length=3, max_length=50000, description="Lote de sentencias SQL a importar o consultar")
-    dry_run: bool = Field(False, description="Si es True, valida y simula la ejecución haciendo ROLLBACK al final")
 
 
 # Helper para obtener el business_id principal
@@ -426,39 +420,7 @@ async def update_admin_banner(
 
 
 # -----------------------------------------------------------------------------
-# 6. IMPORTADOR TRANSACCIONAL SEGURO DE INPUTS SQL (ADMIN)
-# -----------------------------------------------------------------------------
-@router.post("/sql-import", summary="Importar o ejecutar lote de sentencias SQL con validación de seguridad")
-async def run_sql_import(
-    payload: SqlImportRequest,
-    current_user = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Permite al administrador ejecutar o simular (dry-run) un conjunto de inputs SQL
-    (SELECT, INSERT, UPDATE) dentro de una transacción atómica protegida contra
-    instrucciones destructivas (DROP DATABASE, TRUNCATE tablas maestras, COPY PROGRAM).
-    """
-    try:
-        report = await execute_safe_sql_batch(
-            db=db,
-            sql_script=payload.sql_script,
-            dry_run=payload.dry_run
-        )
-        return report
-    except ValueError as ve:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
-    except RuntimeError as re_err:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(re_err))
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error procesando el lote SQL: {str(exc)}"
-        )
-
-
-# -----------------------------------------------------------------------------
-# 7. FACTURACIÓN ELECTRÓNICA DIAN (UBL 2.1 / CUFE SHA-384) Y REIMPRESIÓN POS
+# 6. FACTURACIÓN ELECTRÓNICA DIAN (UBL 2.1 / CUFE SHA-384) Y REIMPRESIÓN POS
 # -----------------------------------------------------------------------------
 class DianSettingsUpdateRequest(BaseModel):
     nit_emisor: str = Field(..., min_length=5, max_length=30)
